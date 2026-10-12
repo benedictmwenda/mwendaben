@@ -57,11 +57,13 @@
 </head>
 <body>
 
+<div id="errBanner" class="card hidden" style="margin:16px;border-color:var(--danger);color:var(--danger)"></div>
+
 <!-- Setup warning -->
 <main id="setup" class="hidden">
   <div class="card">
-    <h2>Setup needed</h2>
-    <p>Open <code>assets/js/config.js</code> and paste your Supabase project URL and anon key, then reload this page. See <code>SETUP.md</code>.</p>
+    <h2 id="setupTitle">Setup needed</h2>
+    <p id="setupMsg">Open <code>assets/js/config.js</code> and paste your Supabase project URL and anon key, then reload this page. See <code>SETUP.md</code>.</p>
   </div>
 </main>
 
@@ -202,6 +204,10 @@
 <div id="toast" class="hidden"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+  // second source in case the first is blocked
+  if (!window.supabase) document.write('<script src="https://unpkg.com/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"><\/script>');
+</script>
 <script src="assets/js/config.js"></script>
 <script>
 (function () {
@@ -210,9 +216,37 @@
   var $ = function (id) { return document.getElementById(id); };
   function show(id, on) { $(id).classList.toggle('hidden', !on); }
 
+  function banner(msg) {
+    var b = $('errBanner'); b.textContent = msg; b.classList.remove('hidden');
+  }
+  window.addEventListener('error', function (e) { banner('Page error: ' + (e.message || e)); });
+  window.addEventListener('unhandledrejection', function (e) {
+    banner('Error: ' + ((e.reason && e.reason.message) || e.reason));
+  });
+
   var configured = cfg.supabaseUrl && cfg.supabaseAnonKey &&
     cfg.supabaseUrl.indexOf('YOUR_') !== 0 && cfg.supabaseAnonKey.indexOf('YOUR_') !== 0;
-  if (!configured || !window.supabase) { show('setup', true); return; }
+  if (!configured) { show('setup', true); return; }
+  if (!window.supabase) {
+    $('setupTitle').textContent = 'Could not load the Supabase library';
+    $('setupMsg').textContent = 'The page could not download the Supabase script (cdn.jsdelivr.net or unpkg.com). Check your internet connection and any ad-blocker or firewall, then reload.';
+    show('setup', true); return;
+  }
+  if (!/^https:\/\/[a-z0-9-]+\.supabase\.(co|in)\/?$/i.test(cfg.supabaseUrl.trim())) {
+    banner('config.js: supabaseUrl should look like https://abcdxyz.supabase.co (Project Settings -> API -> Project URL). Current value: ' + cfg.supabaseUrl);
+  }
+
+  // turn raw database / network errors into plain advice
+  function explain(err) {
+    var m = (err && err.message) || String(err);
+    if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return 'Cannot reach Supabase. Check supabaseUrl in assets/js/config.js and your internet connection.';
+    if (/Invalid login credentials/i.test(m)) return 'Wrong email or password, or this user does not exist yet (Supabase -> Authentication -> Users; tick Auto Confirm User).';
+    if (/Email not confirmed/i.test(m)) return 'This user is not confirmed. In Supabase -> Authentication -> Users, confirm the user (or recreate it with Auto Confirm ticked).';
+    if (/relation .* does not exist|schema cache|Could not find the table/i.test(m)) return 'The database tables are missing. Run supabase/schema.sql in the Supabase SQL Editor.';
+    if (/row-level security|permission denied|violates/i.test(m)) return 'Not allowed: you must sign in with the same email that is set in is_portfolio_admin() in supabase/schema.sql.';
+    if (/Invalid API key|JWT/i.test(m)) return 'The anon key in assets/js/config.js is wrong. Copy the "anon public" key from Project Settings -> API.';
+    return m;
+  }
 
   var BUCKET = cfg.bucket || 'portfolio';
   var sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
@@ -295,16 +329,17 @@
       var s = r.data && r.data.session;
       show('loginView', !s); show('app', !!s);
       if (s) { $('who').textContent = s.user.email; return loadAll(); }
-    });
+    }).catch(function (err) { show('loginView', true); banner(explain(err)); });
   }
   $('loginForm').addEventListener('submit', function (e) {
     e.preventDefault();
     $('loginBtn').disabled = true; $('loginError').textContent = '';
     sb.auth.signInWithPassword({ email: $('email').value.trim(), password: $('password').value })
       .then(function (r) {
-        if (r.error) { $('loginError').textContent = 'Sign-in failed: ' + r.error.message; return; }
+        if (r.error) { $('loginError').textContent = 'Sign-in failed: ' + explain(r.error); return; }
         $('password').value = ''; return refreshSession();
-      }).finally(function () { $('loginBtn').disabled = false; });
+      }).catch(function (err) { $('loginError').textContent = 'Sign-in failed: ' + explain(err); })
+      .finally(function () { $('loginBtn').disabled = false; });
   });
   $('logoutBtn').addEventListener('click', function () { sb.auth.signOut().then(refreshSession); });
 
@@ -323,7 +358,8 @@
       sb.from('portfolio_categories').select('*').order('sort_order').order('name'),
       sb.from('portfolio_items').select('*').order('sort_order').order('created_at', { ascending: false })
     ]).then(function (r) {
-      if (r[0].error || r[1].error) { toast((r[0].error || r[1].error).message, true); return; }
+      if (r[0].error || r[1].error) { banner(explain(r[0].error || r[1].error)); return; }
+      $('errBanner').classList.add('hidden');
       categories = r[0].data; items = r[1].data;
       renderItems(); renderCats(); fillCategorySelect();
     });
@@ -468,7 +504,7 @@
           });
         });
       })
-      .catch(function (err) { toast('Could not save: ' + (err.message || err), true); })
+      .catch(function (err) { toast('Could not save: ' + explain(err), true); })
       .finally(function () { btn.disabled = false; btn.textContent = 'Save item'; });
   });
 
