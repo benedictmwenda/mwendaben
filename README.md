@@ -8,6 +8,7 @@ A responsive one-page portfolio website for Benedict Mwenda (web design, develop
 - **Dark mode and 12 colour themes** via the settings panel
 - **Portfolio loaded from a database** and filtered by category (Web Development, Web Design, Logo & Branding, Graphic Design, plus any categories you add)
 - **Admin dashboard** (`admin.html`) to add, edit, hide and delete portfolio items, with automatic image resizing before upload
+- **CV management**: upload a new CV PDF from the dashboard and the site's "Download CV" button updates automatically
 - **Item types**: full-size image, details popup (description, extra images, project link), YouTube, Vimeo and SoundCloud
 - **Sections**: Home, About (with downloadable CV), Skills, Resume, Portfolio, Services, Blog, Contact
 - **Contact form** powered by Formspree, with validation and a spam trap
@@ -22,13 +23,15 @@ A responsive one-page portfolio website for Benedict Mwenda (web design, develop
 ├── SETUP.md                    Step-by-step database + dashboard setup
 ├── README.md
 ├── supabase/
-│   └── schema.sql              Tables, security rules and storage bucket
+│   ├── schema.sql              Tables, security rules and storage bucket
+│   └── add_cv_settings.sql     CV setting only (for projects created before the CV feature)
 ├── assets/
 │   ├── css/                    colors.css, dark.css, plugins.css, style.css
 │   ├── img/                    about, hero, logo, news, portfolio (demo), service, svg, thumbs
 │   └── js/
 │       ├── config.js           Supabase URL + anon key (you fill this in)
 │       ├── portfolio.js        Loads portfolio items by category
+│       ├── site-settings.js    Points the Download CV button at the uploaded CV
 │       ├── script.js           Contact form handler (Formspree)
 │       ├── closebtn.js         Modal behaviour for demo items
 │       ├── init.js             Template initialisation
@@ -51,6 +54,7 @@ A responsive one-page portfolio website for Benedict Mwenda (web design, develop
 
 Sign in at `/admin.html`:
 
+- **CV tab**: upload a PDF to replace your CV, or remove it to fall back to the bundled file.
 - **Categories tab**: add, rename, reorder or delete categories. They become the filter buttons on the site, and a category appears once it has at least one published item.
 - **Portfolio items tab**: add an item with a title, category, cover image, how it should open, display order and visibility. "Hide" removes an item from the site without deleting it.
 
@@ -65,7 +69,7 @@ Sign in at `/admin.html`:
 - **Colours**: edit `assets/css/colors.css`, or use the in-page colour picker.
 - **Personal content**: update the hero, about, skills, resume, services and blog text in `index.html`. The skills percentages and the counters in the stats section are values you should set to your own.
 - **Contact form**: replace the Formspree endpoint (`https://formspree.io/f/...`) in the `<form action>` of `index.html` with your own.
-- **CV**: replace `assets/img/about/Benedict-Mwenda-CV.pdf`.
+- **CV**: upload a new one in the dashboard's CV tab. `assets/img/about/Benedict-Mwenda-CV.pdf` is only the fallback used until you upload one.
 
 ## Technologies
 
@@ -86,4 +90,3 @@ Sign in at `/admin.html`:
 ## License
 
 © 2025 QAQA SOFTWARES. All rights reserved. The page layout is based on a third-party ThemeForest template; make sure you hold a valid license for it before publishing or redistributing.
-# mwendaben

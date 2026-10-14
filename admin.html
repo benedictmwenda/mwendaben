@@ -97,6 +97,7 @@
     <div class="tabs">
       <button id="tabItems" class="active">Portfolio items</button>
       <button id="tabCats">Categories</button>
+      <button id="tabCv">CV</button>
     </div>
 
     <!-- ITEMS -->
@@ -195,6 +196,24 @@
             <div><label for="c_order">Display order</label><input id="c_order" type="number" value="10" step="1"></div>
           </div>
           <div style="margin-top:14px"><button class="primary" type="submit">Add category</button></div>
+        </form>
+      </div>
+    </section>
+
+    <!-- CV -->
+    <section id="cvView" class="hidden">
+      <div class="card">
+        <h2>Your CV</h2>
+        <p class="muted" style="margin-top:0">The “Download CV” button on your website opens this file. Upload a new PDF any time to replace it.</p>
+        <div id="cvStatus" style="margin:12px 0 4px"></div>
+        <form id="cvForm">
+          <label for="cv_file">Upload a new CV <span class="muted">(PDF, up to 10 MB)</span></label>
+          <input id="cv_file" type="file" accept="application/pdf,.pdf">
+          <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
+            <button class="primary" type="submit" id="cvSaveBtn">Upload &amp; replace</button>
+            <button type="button" id="cvResetBtn" class="danger hidden">Remove uploaded CV</button>
+          </div>
+          <div class="hint">“Remove” switches the site back to the CV file bundled in the site's code.</div>
         </form>
       </div>
     </section>
@@ -345,12 +364,14 @@
 
   /* ---------- tabs ---------- */
   function tab(which) {
-    show('itemsView', which === 'items'); show('catsView', which === 'cats');
+    show('itemsView', which === 'items'); show('catsView', which === 'cats'); show('cvView', which === 'cv');
     $('tabItems').classList.toggle('active', which === 'items');
     $('tabCats').classList.toggle('active', which === 'cats');
+    $('tabCv').classList.toggle('active', which === 'cv');
   }
   $('tabItems').addEventListener('click', function () { tab('items'); });
   $('tabCats').addEventListener('click', function () { tab('cats'); });
+  $('tabCv').addEventListener('click', function () { tab('cv'); });
 
   /* ---------- data loading ---------- */
   function loadAll() {
@@ -362,7 +383,7 @@
       $('errBanner').classList.add('hidden');
       categories = r[0].data; items = r[1].data;
       renderItems(); renderCats(); fillCategorySelect();
-    });
+    }).then(loadCv);
   }
 
   /* ---------- items list ---------- */
@@ -506,6 +527,66 @@
       })
       .catch(function (err) { toast('Could not save: ' + explain(err), true); })
       .finally(function () { btn.disabled = false; btn.textContent = 'Save item'; });
+  });
+
+  /* ---------- CV ---------- */
+  var cvRow = null;
+  function explainCv(err) {
+    var m = (err && err.message) || String(err);
+    if (/site_settings|schema cache|does not exist/i.test(m)) return 'CV uploads are not set up yet. Run supabase/add_cv_settings.sql in the Supabase SQL Editor, then reload.';
+    return explain(err);
+  }
+  function renderCv(errMsg) {
+    var box = $('cvStatus'); box.textContent = '';
+    show('cvResetBtn', !!(cvRow && cvRow.value));
+    $('cvSaveBtn').disabled = !!errMsg;
+    if (errMsg) { box.appendChild(el('p', { style: 'color:var(--danger);margin:0', text: errMsg })); return; }
+    if (cvRow && cvRow.value) {
+      box.appendChild(el('div', {}, [
+        el('span', { class: 'pill on', text: 'Uploaded' }), document.createTextNode(' '),
+        el('a', { href: cvRow.value, target: '_blank', rel: 'noopener noreferrer', text: 'View current CV' }),
+        el('span', { class: 'muted', text: cvRow.updated_at ? '  ·  updated ' + new Date(cvRow.updated_at).toLocaleString() : '' })
+      ]));
+    } else {
+      box.appendChild(el('p', { class: 'muted', style: 'margin:0', text: 'No CV uploaded yet. The site is using the CV file bundled in its code.' }));
+    }
+  }
+  function loadCv() {
+    return sb.from('site_settings').select('*').eq('key', 'cv_url').maybeSingle().then(function (r) {
+      if (r.error) { cvRow = null; renderCv(explainCv(r.error)); return; }
+      cvRow = r.data; renderCv();
+    });
+  }
+  $('cvForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var f = $('cv_file').files[0];
+    if (!f) { toast('Choose a PDF file first.', true); return; }
+    if (f.size > 10 * 1024 * 1024) { toast('That PDF is larger than 10 MB. Please compress it first.', true); return; }
+    var btn = $('cvSaveBtn'); btn.disabled = true; btn.textContent = 'Uploading…';
+    var oldUrl = cvRow && cvRow.value;
+    f.slice(0, 5).text().then(function (head) {
+      if (head.indexOf('%PDF') !== 0) throw new Error('That file is not a valid PDF.');
+      var path = 'cv/Benedict-Mwenda-CV-' + Date.now() + '.pdf';
+      return sb.storage.from(BUCKET).upload(path, f, { contentType: 'application/pdf', upsert: false }).then(function (r) {
+        if (r.error) throw r.error;
+        var url = sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+        return sb.from('site_settings').upsert({ key: 'cv_url', value: url, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+          .then(function (r2) {
+            if (r2.error) { removeFiles([url]); throw r2.error; }
+            if (oldUrl) removeFiles([oldUrl]);
+            $('cv_file').value = ''; toast('CV updated'); return loadCv();
+          });
+      });
+    }).catch(function (err) { toast('Could not upload CV: ' + explainCv(err), true); })
+      .finally(function () { btn.disabled = false; btn.textContent = 'Upload & replace'; });
+  });
+  $('cvResetBtn').addEventListener('click', function () {
+    if (!cvRow || !confirm('Remove the uploaded CV? The site will go back to the CV file bundled in its code.')) return;
+    var oldUrl = cvRow.value;
+    sb.from('site_settings').delete().eq('key', 'cv_url').then(function (r) {
+      if (r.error) { toast(explainCv(r.error), true); return; }
+      removeFiles([oldUrl]); toast('Uploaded CV removed'); return loadCv();
+    });
   });
 
   /* ---------- categories ---------- */

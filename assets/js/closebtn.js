@@ -2,6 +2,16 @@
 document.addEventListener("DOMContentLoaded", function () {
   function closeAll() {
     document.querySelectorAll(".portfolio-modal").forEach(function (m) { m.style.display = "none"; });
+    closeModalBox();
+  }
+
+  // Main popup (portfolio details, services, blog): close it and clear its content
+  function closeModalBox() {
+    var box = document.querySelector(".aali_tm_modalbox");
+    if (!box || !box.classList.contains("opened")) return;
+    box.classList.remove("opened");
+    var wrap = box.querySelector(".description_wrap");
+    if (wrap) wrap.innerHTML = "";
   }
 
   document.addEventListener("click", function (event) {
@@ -19,6 +29,10 @@ document.addEventListener("DOMContentLoaded", function () {
     }
     if (event.target.classList && event.target.classList.contains("portfolio-modal")) {
       event.target.style.display = "none";
+    }
+    // click on the dark area around the popup closes it
+    if (event.target.classList && event.target.classList.contains("aali_tm_modalbox")) {
+      closeModalBox();
     }
   });
 

@@ -22,7 +22,10 @@ Until you finish these steps the site simply shows the old demo items, so nothin
 2. Paste them into `assets/js/config.js`.
    - Use only the anon key. Never paste the `service_role` key anywhere in the site.
 
-## 5. Use it
+## 5. (Already ran schema.sql before the CV feature was added?)
+Run `supabase/add_cv_settings.sql` once in the SQL Editor. It is safe to run again. New projects don't need it, because `schema.sql` already includes it.
+
+## 6. Use it
 1. Upload the site to your host as usual and open `/admin.html`.
 2. Sign in, then **Add item**: title, category, how it should open, cover image, order and visibility.
 3. Visitors see published items on the home page, with filter buttons for every category that has at least one published item.
@@ -34,6 +37,9 @@ Until you finish these steps the site simply shows the old demo items, so nothin
 | Details | popup with description, extra images and an optional "View project" link (good for websites) |
 | YouTube / Vimeo | video popup |
 | SoundCloud | audio player popup |
+
+### Updating your CV
+Open the **CV** tab in the dashboard, choose a PDF (up to 10 MB) and press **Upload & replace**. The "Download CV" button on the site switches to the new file straight away. **Remove uploaded CV** puts the site back on the CV file bundled in the code (`assets/img/about/Benedict-Mwenda-CV.pdf`).
 
 ### Notes
 - Images are shrunk automatically in the browser before upload.
